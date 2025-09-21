@@ -14,7 +14,8 @@ lightState = {
     "OFF": 0,
     "RED": 1,
     "YELLOW": 2,
-    "GREEN": 3
+    "GREEN": 3,
+    "FLASHING": 4 # color of flashing is determined through hardware connections of lights
 }
 
 def create_traffic_light(name: str, initialState: int) -> dict:
@@ -63,19 +64,10 @@ def tl_state_elapsed_time(traffic_light: dict) -> float:
     """
     return time.time() - traffic_light["stateTimeStarted"]
 
-
+# OBSOLETE
 def flash_color(traffic_light: dict, color: int, flashesPerSec: int) -> None:
     """
-    Flashes a traffic light LED programmatically in a certain color.
-
-    Parameters:
-        traffic_light (dict): The traffic light dictionary.
-        color (int): A LightState enum value.
-        currentTime (float): A time.time() float from an external source.
-        flashesPerSec (int): Number of times the light should flash per second.
-            
-    Returns:
-        None
+    OBSOLETE
     """
     if int(time.time() * flashesPerSec * 2) % 2 == 0:
         set_tl_state(traffic_light, lightState["OFF"])

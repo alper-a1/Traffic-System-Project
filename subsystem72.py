@@ -14,201 +14,202 @@ PB1_PB2 = 13
 board = pymata4.Pymata4()
 
 
-class PedestrianSequence():
+def pedestrian_handle_idle(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float) -> None:
     """
-    Handler for the pedestrian crossing with PL1/2 and TL4/5
-
-    sequence states are as follows:
-    0: wait 2s -> choose which TL to make yellow (jump to state 1/2)
+    Idle state; simply exists to wait for the sequence to be started.
     
-    STATE 1 & 2 are NOT sequential - they are both branches off 0
-    1: if tl5 not red, tl5 yellow for 3s, then red -> PL1/2 green
-    2: tl4 yellow, then red -> PL1/2 green
-    
-    3: ped lights green for 3s -> PL1/2 FLASHING RED
-    4: 2s PL1/2 FLASHING RED -> reset sequence; PL1/2 RED, TL4 green    
+    Parameters:
+        pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
+        elapsedTime (float): The time passed in the current state in seconds.
+        currentTime (float): The current time in seconds.
+        
+    Returns:
+        None
     """
+    pass
+
+
+def pedestrian_handle_waiting_to_start(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float) -> None:
+    """
+    After waiting for two seconds at this state, this will determine which of TL4/5 needs to turn yellow, and update to that state.
     
-    def __init__(self, tl4: dict, tl5: dict, pl1Pl2: dict) -> None:
-        self.active = False
-        self.state = 'idle'
-        self.stateTimeStarted = 0
+    Parameters:
+        pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
+        elapsedTime (float): The time passed in the current state in seconds.
+        currentTime (float): The current time in seconds.
         
-        self.seqLastActiveTime = 0 # variable for future 2.G1 implementation
+    Returns:
+        None
+    """
+    if elapsedTime >= pedCrossingStateMachine['waitDuration']:
+        if pedCrossingStateMachine['tl5']['state'] != lightState["RED"]:
+            set_tl_state(pedCrossingStateMachine['tl5'], lightState["YELLOW"])
+            
+            pedCrossingStateMachine['state'] = 'tl5Yellow'
+        else:
+            set_tl_state(pedCrossingStateMachine['tl4'], lightState["YELLOW"])
+            
+            pedCrossingStateMachine['state'] = 'tl4Yellow'
         
-        self.tl4 = tl4
-        self.tl5 = tl5
-        self.pl1Pl2 = pl1Pl2
-        
-        # all times are in seconds
-        self.waitDuration = 2
-        self.tlYellowDuration = 3
-        self.plGreenDuration = 3
-        self.plFlashingRedDuration = 2
-        
-        self.pl1Pl2FlashPerSec = 5
+        pedCrossingStateMachine['stateTimeStarted'] = currentTime
 
-        # handlers for each state
-        self.state_handlers = {
-            'idle': self._handle_idle,
-            'waiting_to_start': self._handle_waiting_to_start,
-            'tl5_yellow': self._handle_tl5_yellow,
-            'tl4_yellow': self._handle_tl4_yellow,
-            'pl_green': self._handle_pl_green,
-            'pl_flashing_red': self._handle_pl_flashing_red
-        }
-        
-    def start(self) -> None:
-        """
-        Start the crossing sequence (stops the current TL4/5 cycle)
-        
-        Parameters:
-            None
-            
-        Returns:
-            None
-        """
-        if not self.active:
-            print("Pedestrain button has been pressed, starting crossing sequence")
-            self.active = True
-            
-            self.state = 'waiting_to_start'
-            self.stateTimeStarted = time.time()
-            
-    def update_sequence(self) -> None:
-        """
-        update the current state of the pedestrain crossing 
-        
-        Parameters:
-            None
-            
-        Returns:
-            None
-        """
-        if not self.active:
-            return
-            
-        currentTime = time.time()
-        stateElapsedTime = currentTime - self.stateTimeStarted
 
-        handler = self.state_handlers.get(self.state)
-        if handler:
-            handler(stateElapsedTime, currentTime)
+def pedestrian_handle_tl5_yellow(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float) -> None:
+    """
+    After waiting three seconds at this state, TL5 goes red and the pedestrian crossing starts.
+    
+    Parameters:
+        pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
+        elapsedTime (float): The time passed in the current state in seconds.
+        currentTime (float): The current time in seconds.
+        
+    Returns:
+        None
+    """
+    if elapsedTime >= pedCrossingStateMachine['tlYellowDuration']:
+        set_tl_state(pedCrossingStateMachine['tl5'], lightState["RED"])
+        set_tl_state(pedCrossingStateMachine['pl1Pl2'], lightState["GREEN"])
+        
+        pedCrossingStateMachine['state'] = 'plGreen'
+        pedCrossingStateMachine['stateTimeStarted'] = currentTime
 
-    def _handle_idle(self, elapsedTime, currentTime):
-        """
-        Idle state; since PedestrainCrossing has no action to take when idle other than wait for PB1/2 to be pressed, this simply exists for
-        readability / debug
-        
-        Parameters:
-            elapsedTime (float): time passed in the current state in seconds
-            currentTime (float): current time in seconds
-        
-        Returns:
-            None
-        """
-        pass
 
-    def _handle_waiting_to_start(self, elapsedTime, currentTime):
-        """
-        After waiting for two seconds at this state, this will determine which of TL4/5 needs to turn yellow, and update to that state
+def pedestrian_handle_tl4_yellow(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float) -> None:
+    """
+    After waiting three seconds at this state, TL4 goes red and the pedestrian crossing starts.
+    
+    Parameters:
+        pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
+        elapsedTime (float): The time passed in the current state in seconds.
+        currentTime (float): The current time in seconds.
         
-        Parameters:
-            elapsedTime (float): time passed in the current state in seconds
-            currentTime (float): current time in seconds
+    Returns:
+        None
+    """
+    if elapsedTime >= pedCrossingStateMachine['tlYellowDuration']:
+        set_tl_state(pedCrossingStateMachine['tl4'], lightState["RED"])
+        set_tl_state(pedCrossingStateMachine['pl1Pl2'], lightState["GREEN"])
         
-        Returns:
-            None
-        """
-        if elapsedTime >= self.waitDuration:
-            if self.tl5["state"] != lightState["RED"]:
-                set_tl_state(self.tl5, lightState["YELLOW"])
-                
-                self.state = 'tl5_yellow'
-            else:
-                set_tl_state(self.tl4, lightState["YELLOW"])
-                
-                self.state = 'tl4_yellow'
-            
-            self.stateTimeStarted = currentTime
+        pedCrossingStateMachine['state'] = 'plGreen'
+        pedCrossingStateMachine['stateTimeStarted'] = currentTime
 
-    def _handle_tl5_yellow(self, elapsedTime, currentTime):
-        """
-        after waiting three seconds at this state, TL5 goes red and the pedestrian crossing starts (state 3)
-        
-        Parameters:
-            elapsedTime (float): time passed in the current state in seconds
-            currentTime (float): current time in seconds
-        
-        Returns:
-            None
-        """
-        if elapsedTime >= self.tlYellowDuration:
-            set_tl_state(self.tl5, lightState["RED"])
 
-            set_tl_state(self.pl1Pl2, lightState["GREEN"])
-            
-            self.state = 'pl_green'
-            self.stateTimeStarted = currentTime
+def pedestrian_handle_pl_green(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float) -> None:
+    """
+    This state keeps PL1/2 green for 3 seconds, after which it sets them to flashing red.
+    
+    Parameters:
+        pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
+        elapsedTime (float): The time passed in the current state in seconds.
+        currentTime (float): The current time in seconds.
+        
+    Returns:
+        None
+    """
+    if elapsedTime >= pedCrossingStateMachine['plGreenDuration']:
+        pedCrossingStateMachine['state'] = 'plFlashingRed'
+        pedCrossingStateMachine['stateTimeStarted'] = currentTime
 
-    def _handle_tl4_yellow(self, elapsedTime, currentTime):
-        """
-        after waiting three seconds at this state, TL4 goes red and the pedestrian crossing starts (state 3)
-        
-        Parameters:
-            elapsedTime (float): time passed in the current state in seconds
-            currentTime (float): current time in seconds
-        
-        Returns:
-            None
-        """
-        if elapsedTime >= self.tlYellowDuration:
-            set_tl_state(self.tl4, lightState["RED"])
-            
-            set_tl_state(self.pl1Pl2, lightState["GREEN"])
-            
-            self.state = 'pl_green'
-            self.stateTimeStarted = currentTime
 
-    def _handle_pl_green(self, elapsedTime, currentTime):
-        """
-        this state keeps PL1/2 green for 3 seconds, after which it sets them to flashing red and jumps to state 4
+def pedestrian_handle_pl_flashing_red(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float) -> None:
+    """
+    The final state, keeps PL1/2 flashing red for 2s, after which it resets to the idle state.
+    
+    Parameters:
+        pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
+        elapsedTime (float): The time passed in the current state in seconds.
+        currentTime (float): The current time in seconds.
         
-        Parameters:
-            elapsedTime (float): time passed in the current state in seconds
-            currentTime (float): current time in seconds
+    Returns:
+        None
+    """
+    # Flashing is handled separately. This function only manages state transitions.
+    if elapsedTime >= pedCrossingStateMachine['plFlashingRedDuration']:
+        set_tl_state(pedCrossingStateMachine['pl1Pl2'], lightState["RED"])
+        set_tl_state(pedCrossingStateMachine['tl4'], lightState["GREEN"])
         
-        Returns:
-            None
-        """
-        if elapsedTime >= self.plGreenDuration:
-            
-            self.state = 'pl_flashing_red'
-            self.stateTimeStarted = currentTime
+        pedCrossingStateMachine['active'] = False
+        pedCrossingStateMachine['state'] = 'idle'
+        pedCrossingStateMachine['stateTimeStarted'] = 0 
+        pedCrossingStateMachine['seqLastActiveTime'] = currentTime
 
-    def _handle_pl_flashing_red(self, elapsedTime, currentTime):
-        """
-        the final state, keeps PL1/2 flashing red for 2s, after which it resets to state 0 and sets the crossing sequence to inactive (resume TL4/5 cycle) 
+
+def create_pedestrian_sm(tl4: dict, tl5: dict, pl1Pl2: dict) -> dict:
+    """
+    Initializes and returns a new state dictionary for the pedestrian crossing sequence statemachine
+    
+    Parameters:
+        tl4 (dict): The traffic light 4 state dictionary.
+        tl5 (dict): The traffic light 5 state dictionary.
+        pl1Pl2 (dict): The pedestrian light 1/2 state dictionary.
         
-        Parameters:
-            elapsedTime (float): time passed in the current state in seconds
-            currentTime (float): current time in seconds
+    Returns:
+        dict: A dictionary representing the entire pedestrian sequence state machine.
+    """
+    pedestrianStateHandlers = {
+        'idle': pedestrian_handle_idle,
+        'waitingToStart': pedestrian_handle_waiting_to_start,
+        'tl5Yellow': pedestrian_handle_tl5_yellow,
+        'tl4Yellow': pedestrian_handle_tl4_yellow,
+        'plGreen': pedestrian_handle_pl_green,
+        'plFlashingRed': pedestrian_handle_pl_flashing_red
+    }
+
+    return {
+        'active': False,
+        'state': 'idle',
+        'stateTimeStarted': 0,
+        'seqLastActiveTime': 0,
+        'tl4': tl4,
+        'tl5': tl5,
+        'pl1Pl2': pl1Pl2,
+        'waitDuration': 2,
+        'tlYellowDuration': 3,
+        'plGreenDuration': 3,
+        'plFlashingRedDuration': 2,
+        'pl1Pl2FlashPerSec': 5,
+        'pedestrianStateHandlers': pedestrianStateHandlers
+    }
+
+
+def start_ped_crossing_sequence(pedCrossingStateMachine: dict) -> None:
+    """
+    Starts the pedestrian crossing sequence.
+    
+    Parameters:
+        pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
         
-        Returns:
-            None
-        """
-        # flashing will be changed into hardware -- this is obsolete for now
-        # self.pl1Pl2.flash_color(lightState["RED"], elapsedTime, self.pl1Pl2FlashPerSec)
+    Returns:
+        None
+    """
+    if not pedCrossingStateMachine['active']:
+        print("Pedestrain button has been pressed, starting crossing sequence")
+        pedCrossingStateMachine['active'] = True
         
-        if elapsedTime >= self.plFlashingRedDuration:
-            set_tl_state(self.pl1Pl2, lightState["RED"])
-            
-            set_tl_state(self.tl4, lightState["GREEN"])
-            self.active = False
-            self.state = 'idle'
-            self.stateTimeStarted = 0 
-            
-            self.seqLastActiveTime = currentTime
+        pedCrossingStateMachine['state'] = 'waitingToStart'
+        pedCrossingStateMachine['stateTimeStarted'] = time.time()
+
+
+def update_ped_crossing_sequence(pedCrossingStateMachine: dict) -> None:
+    """
+    Updates the current state of the pedestrian crossing.
+    
+    Parameters:
+        pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
+        
+    Returns:
+        None
+    """
+    if not pedCrossingStateMachine['active']:
+        return
+        
+    currentTime = time.time()
+    stateElapsedTime = currentTime - pedCrossingStateMachine['stateTimeStarted']
+
+    # grab the handler that we need
+    handler = pedCrossingStateMachine['pedestrianStateHandlers'][pedCrossingStateMachine['state']]
+    if handler:
+        handler(pedCrossingStateMachine, stateElapsedTime, currentTime)
 
 
 def setup() -> None:
@@ -314,17 +315,18 @@ def main():
     
     update_tl4_tl5_pl1_pl2(tl4, tl5, pl1Pl2)
     
-    pedestrianCrossing = PedestrianSequence(tl4, tl5, pl1Pl2)
+    # pedestrianCrossing = PedestrianSequence(tl4, tl5, pl1Pl2)
+    pedestrianCrossing = create_pedestrian_sm(tl4, tl5, pl1Pl2)
     
     while True:
         try:
             # check if the crossing sequence has been activated 
-            if not pedestrianCrossing.active and board.digital_read(PB1_PB2)[0] == HIGH:
-                pedestrianCrossing.start()
+            if not pedestrianCrossing["active"] and board.digital_read(PB1_PB2)[0] == HIGH:
+                start_ped_crossing_sequence(pedestrianCrossing)
             
             
-            if pedestrianCrossing.active:
-                pedestrianCrossing.update_sequence()
+            if pedestrianCrossing["active"]:
+                update_ped_crossing_sequence(pedestrianCrossing)
             else:
                 # TL4 state updating
                 if tl4["state"] == lightState["GREEN"] and tl_state_elapsed_time(tl4) > tl4GreenDuration:
