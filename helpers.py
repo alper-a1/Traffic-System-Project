@@ -2,10 +2,9 @@
 # Created By: Alper Alpcan
 # Created Date: 05/09/2025
 # version ='1.02'
-from pymata4 import pymata4
 import time
 
-DEBUG = 0
+debugFlag = False
 
 HIGH = 1
 LOW = 0
@@ -15,7 +14,7 @@ lightState = {
     "RED": 1,
     "YELLOW": 2,
     "GREEN": 3,
-    "FLASHING": 4 # color of flashing is determined through hardware connections of lights
+    "FLASHING": 4
 }
 
 def create_traffic_light(name: str, initialState: int) -> dict:
@@ -64,47 +63,22 @@ def tl_state_elapsed_time(traffic_light: dict) -> float:
     """
     return time.time() - traffic_light["stateTimeStarted"]
 
-# OBSOLETE
+@DeprecationWarning
 def flash_color(traffic_light: dict, color: int, flashesPerSec: int) -> None:
     """
-    OBSOLETE
+    OBSOLETE - use hardware based (555) flashing
+    
+    Flash the light on/off programmatically 
+    
+    Parameters:
+        traffic_light (dict): The traffic light dictionary.
+        color (int): lightState value to flash
+        flashesPerSec (int): number of flashes per second
+    Returns:
+        None
     """
     if int(time.time() * flashesPerSec * 2) % 2 == 0:
         set_tl_state(traffic_light, lightState["OFF"])
     else:
         set_tl_state(traffic_light, color)        
-        
-        
-def update_shift_register(arduino: pymata4.Pymata4, ser: int, srclk: int, rclk: int, data: int) -> None:
-    """
-    updates the IC74HC595 shift register. requires SER, SRCLK and RCLK pins to be defined.
-    inserts data LSB first.
-    
-    Parameters:
-        ser (int): the serial pin to write from
-        srclk (int): the serial clock pin
-        rclk (int): the register clock pin
-        value (byte): a byte of data to fill the register with.
-        
-    Returns:
-        None
-    """
-    # pulse register clock low to prepare for data
-    arduino.digital_write(rclk, LOW)
-    
-    for _ in range(8):
-        # isolate the LSB
-        bit = data & 0b0000_0001
-        
-        arduino.digital_write(ser, bit)
-        
-        # write the leftmost bit
-        arduino.digital_write(srclk, HIGH)
-        arduino.digital_write(srclk, LOW)
-        
-        # shift to next bit in data
-        data >>= 1
-    
-    # move serial data to register for use
-    arduino.digital_write(rclk, HIGH)
         

@@ -1,17 +1,11 @@
-from pymata4 import pymata4
+# todo make header
+
 import time 
 
 from helpers import *
 
-# shift register pins
-SER = 4
-RCLK = 8
-SRCLK = 9
-
 # button input pins
-PB1_PB2 = 13
-
-board = pymata4.Pymata4()
+pb1pb2Pin = 2
 
 
 def pedestrian_handle_idle(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float) -> None:
@@ -107,6 +101,9 @@ def pedestrian_handle_pl_green(pedCrossingStateMachine: dict, elapsedTime: float
         None
     """
     if elapsedTime >= pedCrossingStateMachine['plGreenDuration']:
+        # set PL1/2 to flashing red (flashing handled in hardware)
+        set_tl_state(pedCrossingStateMachine['pl1Pl2'], lightState["FLASHING"])
+
         pedCrossingStateMachine['state'] = 'plFlashingRed'
         pedCrossingStateMachine['stateTimeStarted'] = currentTime
 
@@ -188,6 +185,8 @@ def start_ped_crossing_sequence(pedCrossingStateMachine: dict) -> None:
         
         pedCrossingStateMachine['state'] = 'waitingToStart'
         pedCrossingStateMachine['stateTimeStarted'] = time.time()
+    else:
+        print("Pedestrian button has been pressed, but crossing sequence is already active")
 
 
 def update_ped_crossing_sequence(pedCrossingStateMachine: dict) -> None:
@@ -212,31 +211,9 @@ def update_ped_crossing_sequence(pedCrossingStateMachine: dict) -> None:
         handler(pedCrossingStateMachine, stateElapsedTime, currentTime)
 
 
-def setup() -> None:
+def generate_72_sr_data(tl4: dict, tl5: dict, pl1pl2: dict) -> int:
     """
-    pin setup / default pin states
-    
-    Parameters: 
-        None
-    
-    Returns:
-        None
-    """
-    #shift register pins
-    board.set_pin_mode_digital_output(SER)
-    board.set_pin_mode_digital_output(RCLK)
-    board.set_pin_mode_digital_output(SRCLK)
-    
-    # flush
-    update_shift_register(board, SER, SRCLK, RCLK, 0b0000_0000)
-    
-    # button pins:
-    board.set_pin_mode_digital_input(PB1_PB2)
-
-
-def update_tl4_tl5_pl1_pl2(tl4: dict, tl5: dict, pl1_pl2: dict) -> None:
-    """
-    packages the tl4, tl5, pl1/2 traffic light data into a byte that is sent onto their shift register for hardware communication
+    packages the tl4, tl5, pl1/2 traffic light data into a byte that for the shift register
     
     Parameters:
         tl4 (TrafficLight): TL4 traffic light data
@@ -244,11 +221,11 @@ def update_tl4_tl5_pl1_pl2(tl4: dict, tl5: dict, pl1_pl2: dict) -> None:
         pl1_pl2 (TrafficLight): PL1 and PL2 (in sync) traffic light data 
         
     Returns:
-        None
+        data (byte): byte representing the data to send to the 7.2 shift register
     """
     data = 0b0000_0000
     
-    # bits and what the match to (MSB to LSB)
+    # BIT MAP:
     # X000_0000 PL1/2 green
     # 0X00_0000 PL1/2 red
     # 00X0_0000 TL4 yelloW
@@ -257,7 +234,6 @@ def update_tl4_tl5_pl1_pl2(tl4: dict, tl5: dict, pl1_pl2: dict) -> None:
     # 0000_0X00 TL5 red
     # 0000_00X0 TL4 green
     # 0000_000X TL5 green
-    
     
     # mask tl4 data
     if tl4["state"] == lightState["GREEN"]:
@@ -276,100 +252,12 @@ def update_tl4_tl5_pl1_pl2(tl4: dict, tl5: dict, pl1_pl2: dict) -> None:
         data |= 0b0001_0000
         
     # mask pl1/pl2 data
-    if pl1_pl2["state"] == lightState["GREEN"]:
+    if pl1pl2["state"] == lightState["GREEN"]:
         data |= 0b1000_0000
-    elif pl1_pl2["state"] == lightState["RED"]:
+    elif pl1pl2["state"] == lightState["RED"]:
         data |= 0b0100_0000
-    elif pl1_pl2["state"] == lightState["OFF"]:
+    elif pl1pl2["state"] == lightState["FLASHING"]:
         data &= 0b0011_1111 # keep every bit but not for pl1/2
         
-    update_shift_register(board, SER, SRCLK, RCLK, data)
- 
+    return data
 
-def main():
-    """
-    Main logic loop of the traffic light system
-    
-    Parameters:
-        None
-        
-    Returns: 
-        None
-    """
-    setup()
-    
-    # create the lights for subsystem 7.2 and send to the register
-    # tl4 = TrafficLight("TL4", lightState["GREEN"])
-    tl4 = create_traffic_light("TL4", lightState["GREEN"])
-    
-    tl4GreenDuration = 20
-    tl4YellowDuration = 3
-    
-    # tl5 = TrafficLight("TL5", lightState["RED"])
-    tl5 = create_traffic_light("TL5", lightState["RED"])
-    tl5GreenDuration = 10
-    tl5YellowDuration = 3
-    
-    # pl1Pl2 = TrafficLight("PL1_PL2", lightState["RED"])
-    pl1Pl2 = create_traffic_light("PL1 PL2", lightState["RED"])
-    
-    update_tl4_tl5_pl1_pl2(tl4, tl5, pl1Pl2)
-    
-    # pedestrianCrossing = PedestrianSequence(tl4, tl5, pl1Pl2)
-    pedestrianCrossing = create_pedestrian_sm(tl4, tl5, pl1Pl2)
-    
-    while True:
-        try:
-            # check if the crossing sequence has been activated 
-            if not pedestrianCrossing["active"] and board.digital_read(PB1_PB2)[0] == HIGH:
-                start_ped_crossing_sequence(pedestrianCrossing)
-            
-            
-            if pedestrianCrossing["active"]:
-                update_ped_crossing_sequence(pedestrianCrossing)
-            else:
-                # TL4 state updating
-                if tl4["state"] == lightState["GREEN"] and tl_state_elapsed_time(tl4) > tl4GreenDuration:
-                    # TL4 green to yellow
-                    # tl4.set_state(lightState["YELLOW"])
-                    set_tl_state(tl4, lightState["YELLOW"])
-                    
-                elif tl4["state"] == lightState["YELLOW"] and tl_state_elapsed_time(tl4) > tl4YellowDuration:
-                    # TL4 yellow to red
-                    # tl4.set_state(lightState["RED"])
-                    set_tl_state(tl4, lightState["RED"])
-                
-                    # when TL4 turns red, TL5 turns green
-                    # tl5.set_state(lightState["GREEN"])
-                    set_tl_state(tl5, lightState["GREEN"])
-                
-
-                # TL5 state updating
-                if tl5["state"] == lightState["GREEN"] and tl_state_elapsed_time(tl5) > tl5GreenDuration:
-                    # TL4 green to yellow
-                    # tl5.set_state(lightState["YELLOW"])
-                    set_tl_state(tl5, lightState["YELLOW"])
-
-                    
-                elif tl5["state"] == lightState["YELLOW"] and tl_state_elapsed_time(tl5) > tl5YellowDuration:
-                    # TL4 yellow to red
-                    # tl5.set_state(lightState["RED"])
-                    set_tl_state(tl5, lightState["RED"])
-                
-                    # when TL4 turns red, TL5 turns green
-                    # tl4.set_state(lightState["GREEN"])
-                    set_tl_state(tl4, lightState["GREEN"])
-
-        except KeyboardInterrupt:
-            return
-        
-        update_tl4_tl5_pl1_pl2(tl4, tl5, pl1Pl2)
-        # minor sleep to not eat up cpu
-        time.sleep(0.05)
-        
-    
-    
-    
-if __name__ == "__main__":
-    main()
-    board.shutdown()
