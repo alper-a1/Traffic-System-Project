@@ -1,4 +1,7 @@
-# todo make header
+# subsystem73.py
+# Created By: Alper Alpcan
+# Created Date: 05/09/2025
+# version =1.04
 
 import time
 
@@ -48,6 +51,7 @@ def vehicle_exit_handle_start_delay(vehicleExitStateMachine: dict, elapsedTime: 
     Returns:
         None 
     """
+    #3.I1 delay of 3 seconds
     if elapsedTime >= vehicleExitStateMachine['tl6StartDelaySec']:
         set_tl_state(vehicleExitStateMachine['tl6'], lightState["GREEN"])
         
@@ -59,8 +63,7 @@ def vehicle_exit_handle_start_delay(vehicleExitStateMachine: dict, elapsedTime: 
 
 def vehicle_exit_handle_green(vehicleExitStateMachine: dict, elapsedTime: float, us5data: int) -> None:
     """
-    Handler for the green state. The exit sequence stays on this state for at least 5 seconds, 
-    after which it will only proceed if there is no longer an overheight detection.
+    Handler for the green state. The exit sequence stays on this state for 5 seconds.
     
     Parameters:
         vehicleExitStateMachine (dict): The dictionary containing the state machine's variables.
@@ -70,16 +73,18 @@ def vehicle_exit_handle_green(vehicleExitStateMachine: dict, elapsedTime: float,
     Returns:
         None 
     """
-    if elapsedTime >= vehicleExitStateMachine['tl6MinGreenDurationSec'] and us5data <= vehicleExitStateMachine['overheightLimit']:
-        set_tl_state(vehicleExitStateMachine['tl6'], lightState["YELLOW"])
-        
-        vehicleExitStateMachine['state'] = 'yellow'  
+
+    # go to next state after tl6GreenDurationSec seconds
+    if elapsedTime >= vehicleExitStateMachine['tl6GreenDurationSec']:
+        set_tl_state(vehicleExitStateMachine['tl6'], lightState["FLASHING"])
+
+        vehicleExitStateMachine['state'] = 'flashing'
         vehicleExitStateMachine['stateTimeStarted'] = time.time()
         
         
-def vehicle_exit_handle_yellow(vehicleExitStateMachine: dict, elapsedTime: float, us5data: int) -> None:
+def vehicle_exit_handle_flashing(vehicleExitStateMachine: dict, elapsedTime: float, us5data: int) -> None:
     """
-    Intermediate state holding tl6 for the desired time in seconds until returning back to idle.
+    handler for the flashing state. The exit sequence stays on this state for at least 3 seconds,
     
     Parameters:
         vehicleExitStateMachine (dict): The dictionary containing the state machine's variables.
@@ -89,7 +94,8 @@ def vehicle_exit_handle_yellow(vehicleExitStateMachine: dict, elapsedTime: float
     Returns:
         None  
     """
-    if elapsedTime >= vehicleExitStateMachine['tl6YellowDurationSec']:
+    # this state goes for as long as the overheight is detected 
+    if us5data <= vehicleExitStateMachine['overheightLimit']:
         set_tl_state(vehicleExitStateMachine['tl6'], lightState["RED"])
         
         vehicleExitStateMachine['active'] = False
@@ -111,17 +117,16 @@ def create_vehicle_exit(tl6: dict, overheightLimit: int) -> dict:
         'idle': vehicle_exit_handle_idle,
         'start_delay': vehicle_exit_handle_start_delay,
         'green': vehicle_exit_handle_green,
-        'yellow': vehicle_exit_handle_yellow
+        'flashing': vehicle_exit_handle_flashing
     }
 
     return {
         'tl6': tl6,
         'overheightLimit': overheightLimit,
-        'tl6YellowDurationSec': 3,
-        'tl6MinGreenDurationSec': 5,
+        'tl6GreenDurationSec': 5,
         'tl6StartDelaySec': 3,
         'active': False,
-        'state': 'idle', 
+        'state': 'idle', # intial state
         'stateTimeStarted': 0,
         'vehicleExitStateHandlers': vehicleExitStateHandlers
     }
