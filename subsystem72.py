@@ -4,10 +4,6 @@ import time
 
 from helpers import *
 
-# button input pins
-pb1pb2Pin = 2
-
-
 def pedestrian_handle_idle(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float) -> None:
     """
     Idle state; simply exists to wait for the sequence to be started.

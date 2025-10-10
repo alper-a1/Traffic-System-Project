@@ -15,10 +15,13 @@ from subsystem73 import *
 
 board = pymata4.Pymata4()
 
-# shift register pins
+# PIN DEFINITIONS
 serialPin = 4
 rclkPin = 8
 srclkPin = 9
+us5TrigPin = 12
+us5EchoPin = 13
+pb1pb2Pin = 2
 
 
 def update_registers(data72reg: int, data73reg: int) -> None:

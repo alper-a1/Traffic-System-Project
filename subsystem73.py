@@ -7,9 +7,6 @@ import time
 
 from helpers import *
 
-us5TrigPin = 12
-us5EchoPin = 13
-
 def us5_sonar_callback(data):
     """
     callback function for US5, exists for debugging.
