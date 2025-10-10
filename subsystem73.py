@@ -75,6 +75,7 @@ def vehicle_exit_handle_green(vehicleExitStateMachine: dict, elapsedTime: float,
     """
 
     # go to next state after tl6GreenDurationSec seconds
+    # EITHER GO TO YELLOW (NO OVERHEIGHT) OR GOT O FLASHING IF OVERHEIGHT.
     if elapsedTime >= vehicleExitStateMachine['tl6GreenDurationSec']:
         set_tl_state(vehicleExitStateMachine['tl6'], lightState["FLASHING"])
 
@@ -118,6 +119,9 @@ def create_vehicle_exit(tl6: dict, overheightLimit: int) -> dict:
         'start_delay': vehicle_exit_handle_start_delay,
         'green': vehicle_exit_handle_green,
         'flashing': vehicle_exit_handle_flashing
+        # YELLOW STATE NEEDS TO BE ADDED BACK
+        # YELLOW STATE IS A BRANCH OFF GREEN, LIKE FLASHING
+        # AFTER GREEN ENDS, CHECK FOR OVERHEIGHT, IF YES GO TO FLASHING, IF NO GO TO YELLOW
     }
 
     return {
