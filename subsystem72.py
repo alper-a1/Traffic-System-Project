@@ -1,4 +1,8 @@
-# todo make header
+# subsystem72.py
+# Author: Alper Alpcan
+# Created Date: 1/09/2025
+# Last Changed: 2025-10-11
+# Version = '1.07'
 
 import time 
 
@@ -6,7 +10,7 @@ from helpers import *
 
 def pedestrian_handle_idle(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float) -> None:
     """
-    Idle state; simply exists to wait for the sequence to be started.
+    Idle state; simply exists as a placeholder for no keyerrors in grabbing the handler during update.
     
     Parameters:
         pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
@@ -19,7 +23,7 @@ def pedestrian_handle_idle(pedCrossingStateMachine: dict, elapsedTime: float, cu
     pass
 
 
-def pedestrian_handle_waiting_to_start(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float) -> None:
+def pedestrian_handle_waiting_to_start(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float, us5Data: int) -> None:
     """
     After waiting for two seconds at this state, this will determine which of TL4/5 needs to turn yellow, and update to that state.
     
@@ -27,6 +31,8 @@ def pedestrian_handle_waiting_to_start(pedCrossingStateMachine: dict, elapsedTim
         pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
         elapsedTime (float): The time passed in the current state in seconds.
         currentTime (float): The current time in seconds.
+        us5Data (int): The overheight data from ultrasonic 5 -- for 2.I1 feature
+
         
     Returns:
         None
@@ -44,7 +50,7 @@ def pedestrian_handle_waiting_to_start(pedCrossingStateMachine: dict, elapsedTim
         pedCrossingStateMachine['stateTimeStarted'] = currentTime
 
 
-def pedestrian_handle_tl5_yellow(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float) -> None:
+def pedestrian_handle_tl5_yellow(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float, us5Data: int) -> None:
     """
     After waiting three seconds at this state, TL5 goes red and the pedestrian crossing starts.
     
@@ -52,6 +58,8 @@ def pedestrian_handle_tl5_yellow(pedCrossingStateMachine: dict, elapsedTime: flo
         pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
         elapsedTime (float): The time passed in the current state in seconds.
         currentTime (float): The current time in seconds.
+        us5Data (int): The overheight data from ultrasonic 5 -- for 2.I1 feature
+
         
     Returns:
         None
@@ -64,7 +72,7 @@ def pedestrian_handle_tl5_yellow(pedCrossingStateMachine: dict, elapsedTime: flo
         pedCrossingStateMachine['stateTimeStarted'] = currentTime
 
 
-def pedestrian_handle_tl4_yellow(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float) -> None:
+def pedestrian_handle_tl4_yellow(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float, us5Data: int) -> None:
     """
     After waiting three seconds at this state, TL4 goes red and the pedestrian crossing starts.
     
@@ -72,6 +80,8 @@ def pedestrian_handle_tl4_yellow(pedCrossingStateMachine: dict, elapsedTime: flo
         pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
         elapsedTime (float): The time passed in the current state in seconds.
         currentTime (float): The current time in seconds.
+        us5Data (int): The overheight data from ultrasonic 5 -- for 2.I1 feature
+
         
     Returns:
         None
@@ -84,7 +94,7 @@ def pedestrian_handle_tl4_yellow(pedCrossingStateMachine: dict, elapsedTime: flo
         pedCrossingStateMachine['stateTimeStarted'] = currentTime
 
 
-def pedestrian_handle_pl_green(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float) -> None:
+def pedestrian_handle_pl_green(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float, us5Data: int) -> None:
     """
     This state keeps PL1/2 green for 3 seconds, after which it sets them to flashing red.
     
@@ -92,11 +102,14 @@ def pedestrian_handle_pl_green(pedCrossingStateMachine: dict, elapsedTime: float
         pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
         elapsedTime (float): The time passed in the current state in seconds.
         currentTime (float): The current time in seconds.
+        us5Data (int): The overheight data from ultrasonic 5 -- for 2.I1 feature
+
         
     Returns:
         None
     """
-    if elapsedTime >= pedCrossingStateMachine['plGreenDuration']:
+    # if more than 3 seconds has passed and there is no overheight detection from US5, we can move on
+    if elapsedTime >= pedCrossingStateMachine['plGreenDuration'] and us5Data >= pedCrossingStateMachine['overheightLimit']:
         # set PL1/2 to flashing red (flashing handled in hardware)
         set_tl_state(pedCrossingStateMachine['pl1Pl2'], lightState["FLASHING"])
 
@@ -104,7 +117,7 @@ def pedestrian_handle_pl_green(pedCrossingStateMachine: dict, elapsedTime: float
         pedCrossingStateMachine['stateTimeStarted'] = currentTime
 
 
-def pedestrian_handle_pl_flashing_red(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float) -> None:
+def pedestrian_handle_pl_flashing_red(pedCrossingStateMachine: dict, elapsedTime: float, currentTime: float, us5Data: int) -> None:
     """
     The final state, keeps PL1/2 flashing red for 2s, after which it resets to the idle state.
     
@@ -112,11 +125,15 @@ def pedestrian_handle_pl_flashing_red(pedCrossingStateMachine: dict, elapsedTime
         pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
         elapsedTime (float): The time passed in the current state in seconds.
         currentTime (float): The current time in seconds.
+        us5Data (int): The overheight data from ultrasonic 5 -- for 2.I1 feature
+
         
     Returns:
         None
     """
     # Flashing is handled separately. This function only manages state transitions.
+    
+    # crossing state machine ends here after flashing for 2sec. 
     if elapsedTime >= pedCrossingStateMachine['plFlashingRedDuration']:
         set_tl_state(pedCrossingStateMachine['pl1Pl2'], lightState["RED"])
         set_tl_state(pedCrossingStateMachine['tl4'], lightState["GREEN"])
@@ -124,10 +141,9 @@ def pedestrian_handle_pl_flashing_red(pedCrossingStateMachine: dict, elapsedTime
         pedCrossingStateMachine['active'] = False
         pedCrossingStateMachine['state'] = 'idle'
         pedCrossingStateMachine['stateTimeStarted'] = 0 
-        pedCrossingStateMachine['seqLastActiveTime'] = currentTime
 
 
-def create_pedestrian_sm(tl4: dict, tl5: dict, pl1Pl2: dict) -> dict:
+def create_pedestrian_sm(tl4: dict, tl5: dict, pl1Pl2: dict, overheightLimit: int) -> dict:
     """
     Initializes and returns a new state dictionary for the pedestrian crossing sequence statemachine
     
@@ -139,6 +155,7 @@ def create_pedestrian_sm(tl4: dict, tl5: dict, pl1Pl2: dict) -> dict:
     Returns:
         dict: A dictionary representing the entire pedestrian sequence state machine.
     """
+    # state handlers.
     pedestrianStateHandlers = {
         'idle': pedestrian_handle_idle,
         'waitingToStart': pedestrian_handle_waiting_to_start,
@@ -148,11 +165,12 @@ def create_pedestrian_sm(tl4: dict, tl5: dict, pl1Pl2: dict) -> dict:
         'plFlashingRed': pedestrian_handle_pl_flashing_red
     }
 
+    # state machine with all instance variables. (cant use classes ;-;)
+    # this can technically be a static dict and not runtime generated however its kept here for clarity
     return {
         'active': False,
         'state': 'idle',
         'stateTimeStarted': 0,
-        'seqLastActiveTime': 0,
         'tl4': tl4,
         'tl5': tl5,
         'pl1Pl2': pl1Pl2,
@@ -161,13 +179,14 @@ def create_pedestrian_sm(tl4: dict, tl5: dict, pl1Pl2: dict) -> dict:
         'plGreenDuration': 3,
         'plFlashingRedDuration': 2,
         'pl1Pl2FlashPerSec': 5,
-        'pedestrianStateHandlers': pedestrianStateHandlers
+        'pedestrianStateHandlers': pedestrianStateHandlers,
+        'overheightLimit': overheightLimit
     }
 
 
-def start_ped_crossing_sequence(pedCrossingStateMachine: dict) -> None:
+def start_ped_crossing_sequence(pedCrossingStateMachine: dict, skipWait: bool = False) -> None:
     """
-    Starts the pedestrian crossing sequence.
+    Starts the pedestrian crossing sequence if it is not already running.
     
     Parameters:
         pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
@@ -179,18 +198,33 @@ def start_ped_crossing_sequence(pedCrossingStateMachine: dict) -> None:
         print("Pedestrain button has been pressed, starting crossing sequence")
         pedCrossingStateMachine['active'] = True
         
-        pedCrossingStateMachine['state'] = 'waitingToStart'
+        # we want to skip the R2.1 two second wait if US5 is triggering the start, thus we go straight to turning 
+        # either tl4 or tl5 red 
+        if not skipWait:
+            pedCrossingStateMachine['state'] = 'waitingToStart'
+        else:
+            if pedCrossingStateMachine['tl5']['state'] != lightState["RED"]:
+                set_tl_state(pedCrossingStateMachine['tl5'], lightState["YELLOW"])
+                pedCrossingStateMachine['state'] = 'tl5Yellow'
+            else:
+                set_tl_state(pedCrossingStateMachine['tl4'], lightState["YELLOW"])
+                pedCrossingStateMachine['state'] = 'tl4Yellow'
+                
         pedCrossingStateMachine['stateTimeStarted'] = time.time()
     else:
-        print("Pedestrian button has been pressed, but crossing sequence is already active")
+        # only show this warning when crossing is triggered via US5, otherwise it spams.
+        if not skipWait:
+            print("Pedestrian button has been pressed, but crossing sequence is already active")
 
 
-def update_ped_crossing_sequence(pedCrossingStateMachine: dict) -> None:
+def update_ped_crossing_sequence(pedCrossingStateMachine: dict, us5Data: int) -> None:
     """
     Updates the current state of the pedestrian crossing.
     
     Parameters:
         pedCrossingStateMachine (dict): The dictionary containing the state machine's variables.
+        us5Data (int): The overheight data from ultrasonic 5 -- for 2.I1 feature
+        
         
     Returns:
         None
@@ -204,7 +238,7 @@ def update_ped_crossing_sequence(pedCrossingStateMachine: dict) -> None:
     # grab the handler that we need
     handler = pedCrossingStateMachine['pedestrianStateHandlers'][pedCrossingStateMachine['state']]
     if handler:
-        handler(pedCrossingStateMachine, stateElapsedTime, currentTime)
+        handler(pedCrossingStateMachine, stateElapsedTime, currentTime, us5Data)
 
 
 def generate_72_sr_data(tl4: dict, tl5: dict, pl1pl2: dict) -> int:

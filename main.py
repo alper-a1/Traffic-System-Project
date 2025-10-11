@@ -1,8 +1,8 @@
 # main.py
 # Author: F24 team
 # Created Date: 02/10/2025
-# Last Changed: 2025-10-02
-# Version ='0.02'
+# Last Changed: 2025-10-11
+# Version ='0.03'
 
 from pymata4 import pymata4
 import time 
@@ -57,7 +57,7 @@ def update_registers(data72reg: int, data73reg: int) -> None:
             board.digital_write(srclkPin, LOW)
             
             # shift the byte right by one to get the next bit
-            byte >>= 1
+            byte >>= 1 
     
     # update 7.3 first, as it is "behind" 7.2 in the daisy chain
     board.digital_write(rclkPin, LOW) 
@@ -108,7 +108,8 @@ def main():
     
     
     # system wide overheight threshold
-    threshold = get_user_overheight_threshold()
+    # threshold = get_user_overheight_threshold()
+    overHeightThreshold =  15
     
   
     
@@ -127,11 +128,11 @@ def main():
 
     data72 = generate_72_sr_data(tl4, tl5, pl1Pl2)
 
-    pedestrianCrossing = create_pedestrian_sm(tl4, tl5, pl1Pl2)
+    pedestrianCrossing = create_pedestrian_sm(tl4, tl5, pl1Pl2, overHeightThreshold)
     
     # 7.3 initalisation
     tl6 = create_traffic_light("TL6", lightState["RED"])
-    vehicleExitSM = create_vehicle_exit(tl6, threshold)
+    vehicleExitSM = create_vehicle_exit(tl6, overHeightThreshold)
 
     data73 = generate_73_sr_data(pl1Pl2, tl6)
 
@@ -145,10 +146,16 @@ def main():
         try:
             # 7.3 logic
             us5data = board.sonar_read(us5TrigPin)[0]
-            if us5data > threshold:
+            if us5data <= overHeightThreshold:
                 start_vehicle_exit(vehicleExitSM)
                     
             update_vehicle_exit_sequence(vehicleExitSM, us5data)     
+            
+            # 7.2 & 7.3 integration 2.I1 (and 3.I1)
+            
+            # if we detect an overheight we start the crossing sequence skipping the 2 second wait.
+            if us5data <= overHeightThreshold:
+                start_ped_crossing_sequence(pedestrianCrossing, True)
                 
             # 7.2 logic
             # check if the crossing sequence has been activated 
@@ -157,7 +164,7 @@ def main():
             
             
             if pedestrianCrossing["active"]:
-                update_ped_crossing_sequence(pedestrianCrossing)
+                update_ped_crossing_sequence(pedestrianCrossing, us5data)
             else:
                 # TL4 state updating
                 if tl4["state"] == lightState["GREEN"] and tl_state_elapsed_time(tl4) > tl4GreenDuration:

@@ -1,7 +1,7 @@
 # subsystem73.py
 # Created By: Alper Alpcan
 # Created Date: 05/09/2025
-# version =1.04
+# version = '1.06'
 
 import time
 
@@ -48,7 +48,7 @@ def vehicle_exit_handle_start_delay(vehicleExitStateMachine: dict, elapsedTime: 
     Returns:
         None 
     """
-    #3.I1 delay of 3 seconds
+    #3.I1 delay of 3 seconds (allow for tl4 and tl5 to go yellow -> red)
     if elapsedTime >= vehicleExitStateMachine['tl6StartDelaySec']:
         set_tl_state(vehicleExitStateMachine['tl6'], lightState["GREEN"])
         
@@ -72,11 +72,16 @@ def vehicle_exit_handle_green(vehicleExitStateMachine: dict, elapsedTime: float,
     """
 
     # go to next state after tl6GreenDurationSec seconds
-    # EITHER GO TO YELLOW (NO OVERHEIGHT) OR GOT O FLASHING IF OVERHEIGHT.
+    # EITHER GO TO YELLOW (NO OVERHEIGHT) OR GOT TO FLASHING IF OVERHEIGHT.
     if elapsedTime >= vehicleExitStateMachine['tl6GreenDurationSec']:
-        set_tl_state(vehicleExitStateMachine['tl6'], lightState["FLASHING"])
-
-        vehicleExitStateMachine['state'] = 'flashing'
+        
+        if us5data <= vehicleExitStateMachine['overheightLimit']:
+            set_tl_state(vehicleExitStateMachine['tl6'], lightState["FLASHING"])
+            vehicleExitStateMachine['state'] = 'flashing'
+        else:
+            set_tl_state(vehicleExitStateMachine['tl6'], lightState["YELLOW"])
+            vehicleExitStateMachine['state'] = 'yellow'
+        
         vehicleExitStateMachine['stateTimeStarted'] = time.time()
         
         
@@ -93,7 +98,27 @@ def vehicle_exit_handle_flashing(vehicleExitStateMachine: dict, elapsedTime: flo
         None  
     """
     # this state goes for as long as the overheight is detected 
-    if us5data <= vehicleExitStateMachine['overheightLimit']:
+    if us5data >= vehicleExitStateMachine['overheightLimit']:
+        set_tl_state(vehicleExitStateMachine['tl6'], lightState["RED"])
+        
+        vehicleExitStateMachine['active'] = False
+        vehicleExitStateMachine['state'] = 'idle' 
+        
+
+def vehicle_exit_handle_yellow(vehicleExitStateMachine: dict, elapsedTime: float, us5data: int) -> None:
+    """
+    handler for the yellow state. The exit sequence stays on this state for 3 seconds.
+    
+    Parameters:
+        vehicleExitStateMachine (dict): The dictionary containing the state machine's variables.
+        elapsedTime (float): seconds elapsed in the current state.
+        us5data (int): distance read (in cm) from US5.
+            
+    Returns:
+        None  
+    """
+    # hold yellow light for tl6YellowDurationSec seconds, then go to red and end sequence
+    if elapsedTime >= vehicleExitStateMachine['tl6YellowDurationSec']:
         set_tl_state(vehicleExitStateMachine['tl6'], lightState["RED"])
         
         vehicleExitStateMachine['active'] = False
@@ -111,20 +136,22 @@ def create_vehicle_exit(tl6: dict, overheightLimit: int) -> dict:
     Returns:
         dict: A dictionary representing the entire vehicle exit state machine.
     """
+    # state handlers.
     vehicleExitStateHandlers = {
         'idle': vehicle_exit_handle_idle,
         'start_delay': vehicle_exit_handle_start_delay,
         'green': vehicle_exit_handle_green,
-        'flashing': vehicle_exit_handle_flashing
-        # YELLOW STATE NEEDS TO BE ADDED BACK
-        # YELLOW STATE IS A BRANCH OFF GREEN, LIKE FLASHING
-        # AFTER GREEN ENDS, CHECK FOR OVERHEIGHT, IF YES GO TO FLASHING, IF NO GO TO YELLOW
+        'flashing': vehicle_exit_handle_flashing,
+        'yellow': vehicle_exit_handle_yellow,
     }
 
+    # state machine with all instance variables. (cant use classes ;-;)
+    # this can technically be a static dict and not runtime generated however its kept here for clarity
     return {
         'tl6': tl6,
         'overheightLimit': overheightLimit,
         'tl6GreenDurationSec': 5,
+        'tl6YellowDurationSec': 3,
         'tl6StartDelaySec': 3,
         'active': False,
         'state': 'idle', # intial state
@@ -135,7 +162,7 @@ def create_vehicle_exit(tl6: dict, overheightLimit: int) -> dict:
 
 def start_vehicle_exit(vehicleExitStateMachine: dict) -> None:
     """
-    Starts the overheight vehicle exit sequence.
+    Starts the overheight vehicle exit sequence if it is not already started.
     
     Parameters:
         vehicleExitStateMachine (dict): The dictionary containing the state machine's variables.
@@ -149,10 +176,6 @@ def start_vehicle_exit(vehicleExitStateMachine: dict) -> None:
 
         vehicleExitStateMachine['state'] = 'start_delay' 
         vehicleExitStateMachine['stateTimeStarted'] = time.time()
-    else:
-        # since start the sequence is called in a loop, ignore if already active - would create spam in console otherwise
-        if debugFlag:
-            print("Vehicle exit sequence already active, ignoring start request")
 
 
 def update_vehicle_exit_sequence(vehicleExitStateMachine: dict, us5data: int) -> None:
@@ -179,6 +202,16 @@ def update_vehicle_exit_sequence(vehicleExitStateMachine: dict, us5data: int) ->
 
 
 def get_user_overheight_threshold() -> int:
+    """
+    Prompts the user to enter an overheight threshold value.
+    
+    Parameters:
+        None
+        
+    Returns:
+        overheightThreshold (int): The overheight threshold value entered by the user, or a default value if no valid input is provided.
+    
+    """
     threshold = 20 # default of 20 cm
     
     while True:
