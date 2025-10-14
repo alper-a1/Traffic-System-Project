@@ -54,6 +54,8 @@ def update_registers(data72reg: int, data73reg: int) -> None:
             
             # pulse the serial clock to indicate that a bit is ready
             board.digital_write(srclkPin, HIGH)
+            # small sleep is otherwise python speed means the pins flip too high 
+            time.sleep(0.001)
             board.digital_write(srclkPin, LOW)
             
             # shift the byte right by one to get the next bit
