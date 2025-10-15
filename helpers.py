@@ -6,8 +6,8 @@ import time
 
 debugFlag = False
 
-HIGH = 1
-LOW = 0
+high = 1
+low = 0
  
 lightState = {
     "OFF": 0,

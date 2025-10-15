@@ -9,6 +9,7 @@ import time
 
 from helpers import *
 
+from subsystem71 import *
 from subsystem72 import *
 from subsystem73 import *
 
@@ -16,15 +17,23 @@ from subsystem73 import *
 board = pymata4.Pymata4()
 
 # PIN DEFINITIONS
-serialPin = 4
+serialPin = 10
 rclkPin = 8
 srclkPin = 9
-us5TrigPin = 12
-us5EchoPin = 13
-pb1pb2Pin = 2
+
+pb1pb2Pin = 13
 
 
-def update_registers(data72reg: int, data73reg: int) -> None:
+us1EchoPin = 3
+us1TrigPin = 2
+
+us2EchoPin = 5
+us2TrigPin = 4
+
+us5TrigPin = 6
+us5EchoPin = 7
+
+def update_registers(data71reg: int, data72reg: int, data73reg: int) -> None:
     """
     updates both shift registers with new data.
     
@@ -53,21 +62,22 @@ def update_registers(data72reg: int, data73reg: int) -> None:
             board.digital_write(serialPin, bit)
             
             # pulse the serial clock to indicate that a bit is ready
-            board.digital_write(srclkPin, HIGH)
+            board.digital_write(srclkPin, high)
             # small sleep is otherwise python speed means the pins flip too high 
             time.sleep(0.001)
-            board.digital_write(srclkPin, LOW)
+            board.digital_write(srclkPin, low)
             
             # shift the byte right by one to get the next bit
             byte >>= 1 
     
     # update 7.3 first, as it is "behind" 7.2 in the daisy chain
-    board.digital_write(rclkPin, LOW) 
+    board.digital_write(rclkPin, low) 
     
+    send_byte(data71reg)
     send_byte(data73reg)
     send_byte(data72reg)
 
-    board.digital_write(rclkPin, HIGH) 
+    board.digital_write(rclkPin, high) 
 
 def setup() -> None:
     """
@@ -86,13 +96,16 @@ def setup() -> None:
     board.set_pin_mode_digital_output(srclkPin)
     
     # flush
-    update_registers(0b0000_0000, 0b0000_0000)
+    update_registers(0b0000_0000, 0b0000_0000, 0b0000_0000)
     
     # button pins:
     board.set_pin_mode_digital_input(pb1pb2Pin)
     
     # ultrasonic pins
     board.set_pin_mode_sonar(us5TrigPin, us5EchoPin, us5_sonar_callback, timeout=200000)
+
+    board.set_pin_mode_sonar(us1TrigPin, us1EchoPin, timeout=200000, callback=us1_callback)
+    board.set_pin_mode_sonar(us2TrigPin, us2EchoPin, timeout=200000, callback=us2_callback)
 
 
 
@@ -112,9 +125,7 @@ def main():
     # system wide overheight threshold
     # threshold = get_user_overheight_threshold()
     overHeightThreshold =  15
-    
   
-    
     
     # 7.2 initalisation
     tl4 = create_traffic_light("TL4", lightState["GREEN"])
@@ -139,9 +150,13 @@ def main():
     data73 = generate_73_sr_data(pl1Pl2, tl6)
 
 
+    # 7.1 initalisation
+    data71 = generate_71_sr_data(tl1State[0],tl2State[0],pa1State[0])
+    us2Tl1Override = False
+    tl2Only = False
+    tl1Process = False
 
-
-    update_registers(data72, data73)
+    update_registers(data71, data72, data73)
 
     # main loop
     while True:
@@ -161,7 +176,7 @@ def main():
                 
             # 7.2 logic
             # check if the crossing sequence has been activated 
-            if not pedestrianCrossing["active"] and board.digital_read(pb1pb2Pin)[0] == HIGH:
+            if not pedestrianCrossing["active"] and board.digital_read(pb1pb2Pin)[0] == high:
                 start_ped_crossing_sequence(pedestrianCrossing)
             
             
@@ -194,13 +209,94 @@ def main():
                     # when TL4 turns red, TL5 turns green
                     set_tl_state(tl4, lightState["GREEN"])
 
+        # ---------
+            
+            # check if us2 has detected an ovreheight vehicle
+            if us2OverHeight[0] or tl2State[0] != "green":
+                # check if us1 has recently detected the vehicle or currently running tl2Only branch
+                if (us1OverHeight[0] or ((time.time() - us1OverHeight[1]) <= us1ToUs2Timing)  or (tl1Process)):
+                    tl2Only = True
+                elif tl2Only:
+                    tl2Only = True
+                else:
+                    tl2Only = False
+                # if us1 has detected a vehicle run the tl2Only branch
+                if tl2Only and (not us2Tl1Override):
+                    if tl2State[0] == "green":
+                        tl2State[0] = "yellow"
+                        tl2State[1] = time.time()
+                    elif tl2State[0] == "yellow" and time.time() - tl2State[1] > tl12YellowLightTime:
+                        tl2State[0] = "red"
+                        tl2State[1] = time.time()
+                    elif tl2State[0] == "red" and time.time() - tl2State[1] > tl12RedLightTime:
+                        # if after red time is over and overheight still deteteced stay red
+                        if not us2OverHeight[0]:
+                            tl2State[0] = "green"
+                            tl2State[1] = time.time()
+                            # once done set tl2Only to false to say show the tl2Only branch is done running
+                            tl2Only = False
+                # if us1 has not detected the vehicle then the override branch to change both traffic lights
+                else:
+                    us2Tl1Override = True
+                    if tl2State[0] == "green":
+                        tl1State[0] = "yellow"
+                        tl2State[0] = "yellow"
+                        tl1State[1] = time.time()
+                        tl2State[1] = time.time()
+                    elif (tl2State[0] == "yellow") and ((time.time() - tl2State[1]) > tl12YellowLightTime):
+                        tl1State[0] = "red"
+                        tl2State[0] = "red"
+                        subsystem71Data = (generate_71_sr_data(tl1State[0],tl2State[0],pa1State[0]))
+                        tl1State[1] = time.time()
+                        tl2State[1] = time.time()
+                    elif (tl2State[0] == "red") and ((time.time() - tl2State[1]) > tl12RedLightTime):
+                        # if after red time is over and overheight still deteteced stay red
+                        if not us2OverHeight[0]:
+                            tl1State[0] = "green"
+                            tl2State[0] = "green"
+                            tl1State[1] = time.time()
+                            tl2State[1] = time.time()
+                            # turn off override once the procedure is complete
+                            us2Tl1Override = False
+
+            # us1 over height detection and tl1 control
+            if (not us2Tl1Override) and (us1OverHeight[0]) and (tl1State[0] == "green"):
+                tl1Process = True
+                print(f"Over Height Vehicle Detected, Height: {overHeight/10}m, Date & Time: {time.ctime()}")
+                tl1State[0] = "yellow" 
+                tl1State[1] = time.time()
+            elif (not us2Tl1Override) and tl1State[0] == "yellow" and time.time() - tl1State[1] > tl12YellowLightTime:
+                tl1State[0] = "red" 
+                tl1State[1] = time.time()
+            elif (not us2Tl1Override) and tl1State[0] == "red" and time.time() - tl1State[1] > tl12RedLightTime:
+                # if after red time is over and overheight still deteteced stay red
+                if not us1OverHeight[0]:
+                    tl1State[0] = "green"
+                    tl1State[1] = time.time()
+                    tl1Process = False
+
+            # # pa1 siren
+            if tl1State[0] == 'red' and (time.time() - tl1State[1] > tl12RedLightTime):
+                pa1State[0] = 'high'
+                pa1State[1] = time.time() 
+            elif tl1State[0] != 'green':
+                pa1State[0] = 'low'
+                pa1State[1] = time.time() 
+            else:
+                pa1State[0] = 'off'
+                pa1State[1] = time.time() 
+
+
         except KeyboardInterrupt:
             return
         
+        data71 = generate_71_sr_data(tl1State[0],tl2State[0],pa1State[0])
         data72 = generate_72_sr_data(tl4, tl5, pl1Pl2)
         data73 = generate_73_sr_data(pl1Pl2, tl6)
         
-        update_registers(data72, data73)
+        
+        
+        update_registers(data71, data72, data73)
         
         # minor sleep to not eat up cpu
         time.sleep(0.05)
