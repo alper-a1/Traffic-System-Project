@@ -12,28 +12,34 @@ from helpers import *
 from subsystem71 import *
 from subsystem72 import *
 from subsystem73 import *
-
+from subsystem74 import *
 
 board = pymata4.Pymata4()
 
 # PIN DEFINITIONS
-serialPin = 10
-rclkPin = 8
-srclkPin = 9
+serialPin = 18
+rclkPin = 12
+srclkPin = 13
 
-pb1pb2Pin = 13
+pb1pb2Pin = 19
 
+# ultrasonic pins
+us1EchoPin = 5
+us1TrigPin = 4
 
-us1EchoPin = 3
-us1TrigPin = 2
+us2EchoPin = 3
+us2TrigPin = 2
 
-us2EchoPin = 5
-us2TrigPin = 4
+us3TrigPin = 8
+us3EchoPin = 9
+
+us4TrigPin = 11
+us4EchoPin = 10
 
 us5TrigPin = 6
 us5EchoPin = 7
 
-def update_registers(data71reg: int, data72reg: int, data73reg: int) -> None:
+def update_registers(data71reg: int, data72reg: int, data73reg: int, data74reg: int) -> None:
     """
     updates both shift registers with new data.
     
@@ -63,7 +69,7 @@ def update_registers(data71reg: int, data72reg: int, data73reg: int) -> None:
             
             # pulse the serial clock to indicate that a bit is ready
             board.digital_write(srclkPin, high)
-            # small sleep is otherwise python speed means the pins flip too high 
+            # small sleep is otherwise python speed means the pins flip too fast 
             time.sleep(0.001)
             board.digital_write(srclkPin, low)
             
@@ -76,6 +82,7 @@ def update_registers(data71reg: int, data72reg: int, data73reg: int) -> None:
     send_byte(data71reg)
     send_byte(data73reg)
     send_byte(data72reg)
+    send_byte(data74reg)
 
     board.digital_write(rclkPin, high) 
 
@@ -96,7 +103,7 @@ def setup() -> None:
     board.set_pin_mode_digital_output(srclkPin)
     
     # flush
-    update_registers(0b0000_0000, 0b0000_0000, 0b0000_0000)
+    update_registers(0b0000_0000, 0b0000_0000, 0b0000_0000, 0b0000_0000)
     
     # button pins:
     board.set_pin_mode_digital_input(pb1pb2Pin)
@@ -107,7 +114,11 @@ def setup() -> None:
     board.set_pin_mode_sonar(us1TrigPin, us1EchoPin, timeout=200000, callback=us1_callback)
     board.set_pin_mode_sonar(us2TrigPin, us2EchoPin, timeout=200000, callback=us2_callback)
 
+    board.set_pin_mode_sonar(us3TrigPin, us3EchoPin, timeout=200000)
+    board.set_pin_mode_sonar(us4TrigPin, us4EchoPin, timeout=200000)
 
+    # sleep at end of step just to make sure everthing is init properly
+    time.sleep(1)
 
 def main():
     """
@@ -155,26 +166,37 @@ def main():
     us2Tl1Override = False
     tl2Only = False
     tl1Process = False
+    
+    # 7.4 initalisation
+    
+    tl3 = create_traffic_light("TL3", lightState["GREEN"])
+    wl2 = create_traffic_light("WL2", lightState["OFF"])
+    
+    tunnelSM = create_tunnel_detection_sm(tl3, wl2, overHeightThreshold)
+    
+    data74 = generate_74_sr_data(tl3, wl2)
 
-    update_registers(data71, data72, data73)
+
+    # send inital data
+    update_registers(data71, data72, data73, data74)
 
     # main loop
     while True:
         try:
-            # 7.3 logic
+            # ---------- 7.3 logic ----------
             us5data = board.sonar_read(us5TrigPin)[0]
             if us5data <= overHeightThreshold:
                 start_vehicle_exit(vehicleExitSM)
                     
             update_vehicle_exit_sequence(vehicleExitSM, us5data)     
             
-            # 7.2 & 7.3 integration 2.I1 (and 3.I1)
+            # ---------- 7.2 & 7.3 integration 2.I1 (and 3.I1) ----------
             
             # if we detect an overheight we start the crossing sequence skipping the 2 second wait.
             if us5data <= overHeightThreshold:
                 start_ped_crossing_sequence(pedestrianCrossing, True)
                 
-            # 7.2 logic
+            # ---------- 7.2 logic ----------
             # check if the crossing sequence has been activated 
             if not pedestrianCrossing["active"] and board.digital_read(pb1pb2Pin)[0] == high:
                 start_ped_crossing_sequence(pedestrianCrossing)
@@ -209,7 +231,7 @@ def main():
                     # when TL4 turns red, TL5 turns green
                     set_tl_state(tl4, lightState["GREEN"])
 
-        # ---------
+            # ---------- 7.1 logic ----------
             
             # check if us2 has detected an ovreheight vehicle
             if us2OverHeight[0] or tl2State[0] != "green":
@@ -246,7 +268,7 @@ def main():
                     elif (tl2State[0] == "yellow") and ((time.time() - tl2State[1]) > tl12YellowLightTime):
                         tl1State[0] = "red"
                         tl2State[0] = "red"
-                        subsystem71Data = (generate_71_sr_data(tl1State[0],tl2State[0],pa1State[0]))
+                        # subsystem71Data = (generate_71_sr_data(tl1State[0],tl2State[0],pa1State[0]))
                         tl1State[1] = time.time()
                         tl2State[1] = time.time()
                     elif (tl2State[0] == "red") and ((time.time() - tl2State[1]) > tl12RedLightTime):
@@ -275,7 +297,7 @@ def main():
                     tl1State[1] = time.time()
                     tl1Process = False
 
-            # # pa1 siren
+            # pa1 siren
             if tl1State[0] == 'red' and (time.time() - tl1State[1] > tl12RedLightTime):
                 pa1State[0] = 'high'
                 pa1State[1] = time.time() 
@@ -286,20 +308,35 @@ def main():
                 pa1State[0] = 'off'
                 pa1State[1] = time.time() 
 
+            # ---------- 7.4 logic ----------
+            
+            # since the 7.1 logic does not directly access sonar values (uses callbacks) we need to reread them here 
+            us1data = board.sonar_read(us1TrigPin)[0]
+            us2data = board.sonar_read(us2TrigPin)[0]
+            
+            us3data = board.sonar_read(us3TrigPin)[0]
+            us4data = board.sonar_read(us4TrigPin)[0]
+            
+            
+            # update 7.4 state machine with all sensor values (for 4.I3)
+            update_tunnel_detection_sm(tunnelSM, us1data, us2data, us3data, us4data, us5data)
+        
+            
+            # ---------- sending data ----------
+        
+            data71 = generate_71_sr_data(tl1State[0],tl2State[0],pa1State[0])
+            data72 = generate_72_sr_data(tl4, tl5, pl1Pl2)
+            data73 = generate_73_sr_data(pl1Pl2, tl6)
+            data74 = generate_74_sr_data(tl3, wl2)
+            
+            
+            update_registers(data71, data72, data73, data74)
+            
+            # minor sleep to not eat up cpu
+            time.sleep(0.05)
 
         except KeyboardInterrupt:
             return
-        
-        data71 = generate_71_sr_data(tl1State[0],tl2State[0],pa1State[0])
-        data72 = generate_72_sr_data(tl4, tl5, pl1Pl2)
-        data73 = generate_73_sr_data(pl1Pl2, tl6)
-        
-        
-        
-        update_registers(data71, data72, data73)
-        
-        # minor sleep to not eat up cpu
-        time.sleep(0.05)
         
     
     
