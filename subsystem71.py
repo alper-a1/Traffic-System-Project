@@ -20,7 +20,7 @@ overHeight = 0
 sensorToRoadHeight = 60
 
 # delays
-tl12RedLightTime = 3
+tl12RedLightTime = 30
 tl12YellowLightTime = 1
 us1ToUs2Timing = 5 
 
