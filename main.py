@@ -1,8 +1,8 @@
 # main.py
 # Author: F24 team
 # Created Date: 02/10/2025
-# Last Changed: 2025-10-11
-# Version ='0.03'
+# Last Changed: 17/10/2025
+# Version ='0.05'
 
 from pymata4 import pymata4
 import time 
@@ -110,12 +110,15 @@ def setup() -> None:
     
     # ultrasonic pins
     board.set_pin_mode_sonar(us5TrigPin, us5EchoPin, us5_sonar_callback, timeout=200000)
-
+    time.sleep(0.1)
     board.set_pin_mode_sonar(us1TrigPin, us1EchoPin, timeout=200000, callback=us1_callback)
+    time.sleep(0.1)
     board.set_pin_mode_sonar(us2TrigPin, us2EchoPin, timeout=200000, callback=us2_callback)
-
+    time.sleep(0.1)
     board.set_pin_mode_sonar(us3TrigPin, us3EchoPin, timeout=200000)
+    time.sleep(0.1)
     board.set_pin_mode_sonar(us4TrigPin, us4EchoPin, timeout=200000)
+    time.sleep(0.1)
 
     # sleep at end of step just to make sure everthing is init properly
     time.sleep(1)
@@ -134,9 +137,16 @@ def main():
     
     
     # system wide overheight threshold
-    # threshold = get_user_overheight_threshold()
-    overHeightThreshold =  15
-  
+    global overHeightLimit 
+    overHeightLimit = get_user_overheight_threshold()
+    
+    
+    # 7.1 initalisation
+    data71 = generate_71_sr_data(tl1State[0],tl2State[0],pa1State[0])
+    us2Tl1Override = False
+    tl2Only = False
+    tl1Process = False
+    
     
     # 7.2 initalisation
     tl4 = create_traffic_light("TL4", lightState["GREEN"])
@@ -152,27 +162,21 @@ def main():
 
     data72 = generate_72_sr_data(tl4, tl5, pl1Pl2)
 
-    pedestrianCrossing = create_pedestrian_sm(tl4, tl5, pl1Pl2, overHeightThreshold)
+    pedestrianCrossing = create_pedestrian_sm(tl4, tl5, pl1Pl2, overHeightLimit)
+    
     
     # 7.3 initalisation
     tl6 = create_traffic_light("TL6", lightState["RED"])
-    vehicleExitSM = create_vehicle_exit(tl6, overHeightThreshold)
+    vehicleExitSM = create_vehicle_exit(tl6, overHeightLimit)
 
     data73 = generate_73_sr_data(pl1Pl2, tl6)
 
 
-    # 7.1 initalisation
-    data71 = generate_71_sr_data(tl1State[0],tl2State[0],pa1State[0])
-    us2Tl1Override = False
-    tl2Only = False
-    tl1Process = False
-    
     # 7.4 initalisation
-    
     tl3 = create_traffic_light("TL3", lightState["GREEN"])
     wl2 = create_traffic_light("WL2", lightState["OFF"])
     
-    tunnelSM = create_tunnel_detection_sm(tl3, wl2, overHeightThreshold)
+    tunnelSM = create_tunnel_detection_sm(tl3, wl2, overHeightLimit)
     
     data74 = generate_74_sr_data(tl3, wl2)
 
@@ -185,7 +189,7 @@ def main():
         try:
             # ---------- 7.3 logic ----------
             us5data = board.sonar_read(us5TrigPin)[0]
-            if us5data <= overHeightThreshold:
+            if us5data <= overHeightLimit:
                 start_vehicle_exit(vehicleExitSM)
                     
             update_vehicle_exit_sequence(vehicleExitSM, us5data)     
@@ -193,7 +197,7 @@ def main():
             # ---------- 7.2 & 7.3 integration 2.I1 (and 3.I1) ----------
             
             # if we detect an overheight we start the crossing sequence skipping the 2 second wait.
-            if us5data <= overHeightThreshold:
+            if us5data <= overHeightLimit:
                 start_ped_crossing_sequence(pedestrianCrossing, True)
                 
             # ---------- 7.2 logic ----------

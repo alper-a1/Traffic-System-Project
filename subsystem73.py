@@ -201,36 +201,6 @@ def update_vehicle_exit_sequence(vehicleExitStateMachine: dict, us5data: int) ->
         handler(vehicleExitStateMachine, elapsedTime, us5data)
 
 
-def get_user_overheight_threshold() -> int:
-    """
-    Prompts the user to enter an overheight threshold value.
-    
-    Parameters:
-        None
-        
-    Returns:
-        overheightThreshold (int): The overheight threshold value entered by the user, or a default value if no valid input is provided.
-    
-    """
-    threshold = 20 # default of 20 cm
-    
-    while True:
-        userInput = input("Enter an overheight threshold (a number; ie: '15'): ")
-        
-        if userInput in "\t\n ":
-            print("No input detected, using default of 20")
-            break
-        
-        try:
-            intInput = int(userInput)
-            threshold = intInput
-            break
-        except ValueError:
-            print("Please only user valid integers (ie: '20'), try again.")
-            
-    return threshold
-
-
 def generate_73_sr_data(pl1pl2: dict, tl6: dict) -> int:
     """
     Generates the subsystem 7.3 shift register data byte.

@@ -60,13 +60,6 @@ def tunnel_detect_handle_warning(tunnelDetectionSM: dict, us1data: int, us2data:
     set_tl_state(tunnelDetectionSM['tl3'], lightState['RED'])    
     set_tl_state(tunnelDetectionSM['wl2'], lightState['FLASHING'])    
     
-    # REPLACE WITH INTEGRATION BUT FOR NOW:
-    
-    
-    # # no more overheight detected (only determined by us3) --> go back to normal state
-    # if us3data >= tunnelDetectionSM['overheightLimit']:
-    #     tunnelDetectionSM['state'] = 'normal'
-        
     # we only go back to the normal state if US1/US2/US3/US4/US5 no longer detect an overheight vehicle
     # AND
     # US5 detects an overheight vehicle exiting

@@ -6,6 +6,8 @@
 
 import time
 
+overHeightLimit = 40     
+
 # state saves
 us1OverHeight = [False,0]
 us2OverHeight = [False,0]
@@ -13,8 +15,7 @@ tl1State = ["green",0]
 tl2State = ["green",0]
 pa1State = ["off",0]
 
-# variable for overheight calculations
-overHeightLimit = 40                                                                                                                                                                                                                                  
+# variable for overheight calculations                                                                                                                                                                                                                             
 overHeight = 0
 sensorToRoadHeight = 60
 
@@ -39,13 +40,11 @@ def us1_callback(data):
         us1OverHeight[0] = True
         us1OverHeight[1] = time.time()
         overHeight = vehicleHeight
-        print(f"us1 {vehicleHeight}")
         
     # when the detected overheight vehicle moves away
     if vehicleHeight < overHeightLimit and us1OverHeight[0] == True:
         us1OverHeight[0] = False
         overHeight = 0
-        print("us1 gone")
 
 def us2_callback(data):
     """
@@ -60,12 +59,10 @@ def us2_callback(data):
     if us2OverHeight[0] == False and vehicleHeight > overHeightLimit:
         us2OverHeight[0] = True
         us2OverHeight[1] = time.time()
-        print(f"us2 {vehicleHeight}")
 
     # when the detected overheight vehicle moves away
     if vehicleHeight < overHeightLimit and us2OverHeight[0] == True:
         us2OverHeight[0] = False
-        print("us2 gone")
 
 # gets the binary data we need to enter into the shift register in order to diaplay what we want
 def generate_71_sr_data(tl1,tl2,pa1):
@@ -85,11 +82,9 @@ def generate_71_sr_data(tl1,tl2,pa1):
     tl2Red     = 0b00001000
     tl2Yellow  = 0b00000100
     tl2Green   = 0b00000010
-    bothRed    = 0b01001000
-    bothYellow = 0b00100100
-    bothGreen  = 0b00010010
     pa1Low  = 0b10000000
     pa1High = 0b00000001
+    
     # reset to nothing on
     data = 0b00000000
     # turn on lights and alarms depending
@@ -105,41 +100,3 @@ def generate_71_sr_data(tl1,tl2,pa1):
         case "high": data |= pa1High
         case "low": data |= pa1Low
     return data
-
-# get overheight limit
-# USE THIS ONE??
-def user_input_overheight():
-    """
-    Gets the validated overheight height value from the user and saves to overHeightLimit
-    Args:
-        None
-    Returns:
-        None
-    """
-    global overHeightLimit
-    # get overheight limit scaled by 1m = 10cm
-    while True:
-        overHeightLimit = input("Enter overheight limit (Between 1 and 5 meters): ").strip()
-
-        # check for blank entry and use default
-        if overHeightLimit == "":
-            overHeightLimit = 40
-            print("Using default value of 4m")
-            break
-        # check for not a number and get reentry
-        try:
-            overHeightLimit = (float(overHeightLimit))
-        except ValueError:
-            print("Please enter a number or nothing.")
-            overHeightLimit = 40
-            continue
-
-        # if it is a number check if within range, else reentry
-        if overHeightLimit < 5 and overHeightLimit > 1:
-            print(f"Valid Entry, over height limit of {overHeightLimit}m taken.")
-            overHeightLimit = overHeightLimit * 10  # scaling
-            break
-        else:
-            print("Please enter a value between 1m and 5m")
-            overHeightLimit = 40
-            continue
