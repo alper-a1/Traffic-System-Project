@@ -6,8 +6,8 @@ import time
 
 debugFlag = False
 
-HIGH = 1
-LOW = 0
+high = 1
+low = 0
  
 lightState = {
     "OFF": 0,
@@ -28,15 +28,15 @@ def create_traffic_light(name: str, initialState: int) -> dict:
     Returns:
         dict: A dictionary representing the traffic light.
     """
-    traffic_light = {
+    trafficLight = {
         "name": name,
         "state": initialState,
         "stateTimeStarted": time.time()
     }
-    return traffic_light
+    return trafficLight
 
 
-def set_tl_state(traffic_light: dict, newState: int) -> None:
+def set_tl_state(trafficLight: dict, newState: int) -> None:
     """
     Sets the traffic light's color state and updates its start time.
 
@@ -47,11 +47,11 @@ def set_tl_state(traffic_light: dict, newState: int) -> None:
     Returns:
         None
     """
-    traffic_light["state"] = newState
-    traffic_light["stateTimeStarted"] = time.time()
+    trafficLight["state"] = newState
+    trafficLight["stateTimeStarted"] = time.time()
 
 
-def tl_state_elapsed_time(traffic_light: dict) -> float:
+def tl_state_elapsed_time(trafficLight: dict) -> float:
     """
     Calculates the time elapsed since the last state change.
 
@@ -61,24 +61,38 @@ def tl_state_elapsed_time(traffic_light: dict) -> float:
     Returns:
         float: The total time elapsed in its current LightState.
     """
-    return time.time() - traffic_light["stateTimeStarted"]
+    return time.time() - trafficLight["stateTimeStarted"]
 
-@DeprecationWarning
-def flash_color(traffic_light: dict, color: int, flashesPerSec: int) -> None:
+
+def get_user_overheight_threshold() -> int:
     """
-    OBSOLETE - use hardware based (555) flashing
-    
-    Flash the light on/off programmatically 
+    Prompts the user to enter an overheight threshold value.
     
     Parameters:
-        traffic_light (dict): The traffic light dictionary.
-        color (int): lightState value to flash
-        flashesPerSec (int): number of flashes per second
-    Returns:
         None
-    """
-    if int(time.time() * flashesPerSec * 2) % 2 == 0:
-        set_tl_state(traffic_light, lightState["OFF"])
-    else:
-        set_tl_state(traffic_light, color)        
         
+    Returns:
+        overheightThreshold (int): The overheight threshold value entered by the user, or a default value if no valid input is provided.
+    
+    """
+    threshold = 20 # default of 20 cm
+    
+    while True:
+        userInput = input("Enter an overheight threshold (a number; ie: '15'): ")
+        
+        if userInput in "\t\n ":
+            print("No input detected, using default of 20")
+            break
+        
+        try:
+            intInput = int(userInput)
+            if intInput <=0:
+                raise ValueError
+            
+            threshold = intInput
+            break
+        except ValueError:
+            print("Please only user valid integers (ie: '20'), try again.")
+            
+    return threshold
+
